@@ -1,65 +1,51 @@
 from time import strftime, localtime
+from neopixel import *
 
+# LED strip configuration:
+LED_COUNT      = 150     # Number of LED pixels.
+LED_PIN        = 18      # GPIO pin connected to the pixels (18 uses PWM!).
+LED_FLAGS      = NEO_KHZ800 + NEO_GRB # TODO might not be the right place
+LED_DMA        = 10      # DMA channel to use for generating signal (try 10)
+LED_BRIGHTNESS = 255     # Set to 0 for darkest and 255 for brightest
+LED_INVERT     = False   # True to invert the signal (when using NPN transistor level shift)
+LED_CHANNEL    = 0       # set to '1' for GPIOs 13, 19, 41, 45 or 53
+
+
+# Special Time configurations
 EASTEREGG_MINUTES = 17
+HALLOWEEN_ORANGE = Color(0xFF, 0x91, 0x00)
+WHITE = Color(255, 255, 255)
 
 # TODO replace with rpi stuff
-GPIO1 = 1
-GPIO2 = 2
-GPIO3 = 3
-GPIO4 = 4
-GPIO5 = 5
-GPIO6 = 6
-GPIO7 = 7
-GPIO8 = 8
-GPIO9 = 9
-GPIO10 = 10
-GPIO11 = 11
-GPIO12 = 12
-GPIO13 = 13
-GPIO14 = 14
-GPIO15 = 15
-GPIO16 = 16
-GPIO17 = 17
-GPIO18 = 18
-GPIO19 = 19
-GPIO20 = 20
-GPIO21 = 21
-GPIO22 = 22
-GPIO23 = 23
-GPIO24 = 24
-GPIO25 = 25
-GPIO26 = 26
-GPIO27 = 27
-
-word_to_gpio = {
-    'it': GPIO1,
-    'is': GPIO2,
-    'twenty': GPIO3,
-    'half': GPIO4,
-    'quarter': GPIO4,
-    'ten_m': GPIO5,
-    'five_m': GPIO6,
-    'to': GPIO7,
-    'past': GPIO8,
-    'one': GPIO9,
-    'two': GPIO10,
-    'three': GPIO11,
-    'eleven': GPIO12,
-    'twelve': GPIO13,
-    'seven': GPIO14,
-    'six': GPIO15,
-    'nine': GPIO16,
-    'ten_h': GPIO17,
-    'eight': GPIO18,
-    'four': GPIO19,
-    'five_h': GPIO20,
-    "o'clock": GPIO21,
-    'noon': GPIO22,
-    'midnight': GPIO23,
-    'am': GPIO24,
-    'pm': GPIO25,
-    'ece1t7': GPIO26,
-    'easteregg': GPIO27
+word_to_indices = {
+    'it': [0, 1],
+    'is': [0, 1],
+    'twenty': [0, 1],
+    'half': [0, 1],
+    'quarter': [0, 1],
+    'ten_m': [0, 1],
+    'five_m': [0, 1],
+    'to': [0, 1],
+    'past': [0, 1],
+    'one': [0, 1],
+    'two': [0, 1],
+    'three': [0, 1],
+    'eleven': [0, 1],
+    'twelve': [0, 1],
+    'seven': [0, 1],
+    'six': [0, 1],
+    'nine': [0, 1],
+    'ten_h': [0, 1],
+    'eight': [0, 1],
+    'four': [0, 1],
+    'five_h': [0, 1],
+    "o'clock": [0, 1],
+    'noon': [0, 1],
+    'midnight': [0, 1],
+    'am': [0, 1],
+    'pm': [0, 1],
+    'ece1t7': [0, 1],
+    'easteregg': [0, 1],
 }
 
 def parse_words(time):
@@ -71,7 +57,7 @@ def parse_words(time):
     hour_12 = int(strftime("%I", time))
     hour_24 = time.tm_hour
 
-    words = ['it', 'is']
+    words = ['it', 'is', 'ece1t7']
     # round minutes to nearest 5, capped at 55
     r_minutes = round(minutes/5)*5 % 60
     if r_minutes == 5 or r_minutes == 55:
@@ -135,20 +121,60 @@ def parse_words(time):
 
     return words
 
-def activate_pins(pins):
-    for p in range(32): # TODO how many pins should we set low?
-        if p in pins:
-            GPIO.output(p, GPIO.HIGH)
-        else:
-            GPIO.output(p, GPIO.LOW)
+def get_color_for_word(w):
+    t = localtime()
+    if t.tm_mon == 10 and t.tm_mday == 31: # Oct 31
+        return HALLOWEEN_ORANGE
+
+    elif w in ['ece1t7', 'it', 'is']:
+        return WHITE # these words are always white
+
+    # NOTE: insert other special times or words here
+    else:
+        r = random.randint(0, 255)
+        g = random.randint(0, 255)
+        b = random.randint(0, 255)
+        while r == 0 and g == 0 and b == 0:
+            # Never use black
+            r = random.randint(0, 255)
+            g = random.randint(0, 255)
+            b = random.randint(0, 255)
+
+        return Color(r,g,b)
+
+last_words = set()
+def activate_words(strip, words):
+
+    # Nothing to do if words haven't changed
+    if last_words == set(words):
+        return
+
+    # Words have changed
+    last_words = set(words)
+
+    # Turn off all pixels
+    for p in range(strip.numPixels()):
+        strip.setPixelColor(p, Color(0,0,0))
+
+    # Turn on appropriate words
+    for w in words:
+        pins_for_word = words_to_indices[w]
+        color = get_color_for_word(w)
+        for p in pins_for_word:
+            strip.setPixelColor(p, color)
+
+    # Show changes on strip
+    strip.show()
+
 
 def main():
+    strip = Adafruit_NeoPixel(LED_COUNT, LED_PIN, LED_FLAGS, LED_DMA, LED_INVERT, LED_BRIGHTNESS, LED_CHANNEL)
+    strip.begin()
     while True:
         t  = localtime()
         words = parse_words(t)
-        pins = [word_to_gpio[w] for w in words]
-        activate_pins(pins)
-                  
+        activate_words(words)
+
 
 def test():
     for i in range(24*60):
